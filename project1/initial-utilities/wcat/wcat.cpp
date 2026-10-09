@@ -13,7 +13,7 @@ int main(int argc, char* argvp[]){
         int fd = open(argvp[i], O_RDONLY);
         // if no file, print error message -> exit with 1 
         if (fd < 0){
-            cerr << "wcat: cannot open file" << endl;
+            cout << "wcat: cannot open file" << endl;
             exit(1);
         }
     
