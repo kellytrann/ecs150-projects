@@ -1,7 +1,0 @@
-README.md
-out.txt
-out2.txt
-processes-shell
-tester
-wish
-wish.cpp
