@@ -6,6 +6,8 @@
 #include <iostream>
 #include <map>
 #include <string>
+#include <sys/stat.h> 
+#include <errno.h>
 
 #include "FileService.h"
 
@@ -40,19 +42,26 @@ void FileService::get(HTTPRequest *request, HTTPResponse *response) {
     return; 
   }
   string path = this->m_basedir + requestedPath;
-  string fileContents = this->readFile(path);
-  if (fileContents.size() == 0) {
-    response->setStatus(404);
-    return;
-  } else {
-    if (this->endswith(path, ".css")) {
-      response->setContentType("text/css");
-    } else if (this->endswith(path, ".js")) {
-      response->setContentType("text/javascript");
-    }
-    response->setBody(fileContents);
+
+  struct stat fileInfo; 
+  if(stat(path.c_str(), &fileInfo) != 0){
+    response->setStatus(errno == ENOENT ? 404 : 403); 
+    return; 
   }
+
+  if(!S_ISREG(fileInfo.st_mode) || access(path.c_str(), R_OK) != 0){
+    response->setStatus(403); 
+    return; 
+  }
+  string fileContents = this->readFile(path);
+  if (this->endswith(path, ".css")) {
+    response->setContentType("text/css");
+  } else if (this->endswith(path, ".js")) {
+    response->setContentType("text/javascript");
+  }
+    response->setBody(fileContents);
 }
+
 
 string FileService::readFile(string path) {
   int fd = open(path.c_str(), O_RDONLY);
