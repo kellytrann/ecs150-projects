@@ -81,11 +81,19 @@ void handle_request(MySocket *client) {
     // swallow it
   }    
     
+// if reading request fails - delete request and response
+// close adn delete the client before returning 
   if (!readResult) {
-    // there was a problem reading in the request, bail
     delete response;
     delete request;
     sync_print("read_request_error", payload.str());
+
+    payload.str("");
+    payload.clear();
+    payload << " client: " << (void *) client;
+    sync_print("close_connection", payload.str());
+    client->close();
+    delete client;
     return;
   }
   
