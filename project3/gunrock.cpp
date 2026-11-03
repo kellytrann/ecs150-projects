@@ -31,6 +31,11 @@ string LOGFILE = "/dev/null";
 
 vector<HttpService *> services;
 
+pthread_mutex_t queue_mutex = PTHREAD_MUTEX_INITIALIZER; 
+pthread_cond_t queue_not_empty = PTHREAD_COND_INITIALIZER; 
+pthread_cond_t queue_not_full = PTHREAD_COND_INITIALIZER;
+deque<MySocket *> connection_queue;
+
 HttpService *find_service(HTTPRequest *request) {
    // find a service that is registered for this path prefix
   for (unsigned int idx = 0; idx < services.size(); idx++) {
@@ -104,6 +109,31 @@ void handle_request(MySocket *client) {
   delete client;
 }
 
+// worker function
+/*
+* Each worker wwaits for a connection to be added to the queue, then process it
+* Queue lock is realeased before the worker handles request 
+*/
+void *worker_thread(void *arg){ 
+  (void)arg; 
+
+  while(true){
+    dthread_mutex_lock(&queue_mutex);
+
+    while(connection_queue.empty()){
+      dthread_cond_wait(&queue_not_empty, &queue_mutex);
+    }
+    MySocket *client = connection_queue.front();
+    connection_queue.pop_front();
+
+    dthread_cond_signal(&queue_not_full);
+    dthread_mutex_unlock(&queue_mutex);
+
+    handle_request(client);
+  }
+  return NULL; 
+}
+
 int main(int argc, char *argv[]) {
 
   signal(SIGPIPE, SIG_IGN);
@@ -135,6 +165,11 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  if(THREAD_POOL_SIZE <= 0 || BUFFER_SIZE <= 0){ 
+    cerr << "The number of threads and buffers must be positive." << endl; 
+    return 1; 
+  }
+
   set_log_file(LOGFILE);
 
   sync_print("init", "");
@@ -144,11 +179,28 @@ int main(int argc, char *argv[]) {
   // The order that you push services dictates the search order
   // for path prefix matching
   services.push_back(new FileService(BASEDIR));
+
+  for (int i = 0; i < THREAD_POOL_SIZE; i++) {
+    pthread_t worker; 
+    if (dthread_create(&worker, NULL, worker_thread, NULL) != 0){
+      cerr << "Could not create worker thread." << endl; 
+      return 1; 
+    }if (dthread_detach(worker) != 0){
+      cerr << "Could not detach worker thread." << endl; 
+      return 1;
+    }
+  }
   
   while(true) {
     sync_print("waiting_to_accept", "");
     client = server->accept();
     sync_print("client_accepted", "");
-    handle_request(client);
+    dthread_mutex_lock(&queue_mutex);
+    while(connection_queue.size() >= (size_t)BUFFER_SIZE){
+      dthread_cond_wait(&queue_not_full, &queue_mutex);
+    }
+    connection_queue.push_back(client);
+    dthread_cond_signal(&queue_not_empty);
+    dthread_mutex_unlock(&queue_mutex);
   }
 }
