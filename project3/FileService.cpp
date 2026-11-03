@@ -42,7 +42,7 @@ void FileService::get(HTTPRequest *request, HTTPResponse *response) {
   string path = this->m_basedir + requestedPath;
   string fileContents = this->readFile(path);
   if (fileContents.size() == 0) {
-    response->setStatus(403);
+    response->setStatus(404);
     return;
   } else {
     if (this->endswith(path, ".css")) {
