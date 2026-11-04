@@ -49,7 +49,7 @@ void FileService::get(HTTPRequest *request, HTTPResponse *response) {
     return; 
   }
 
-  if(!S_ISREG(fileInfo.st_mode) || access(path.c_str(), R_OK) != 0){
+  if(S_ISDIR(fileInfo.st_mode) || access(path.c_str(), R_OK) != 0){
     response->setStatus(403); 
     return; 
   }

@@ -82,11 +82,10 @@ void handle_request(MySocket *client) {
   }    
     
   if (!readResult) {
+    // there was a problem reading in the request, bail
     delete response;
     delete request;
     sync_print("read_request_error", payload.str());
-    client->close();
-    delete client;
     return;
   }
   
